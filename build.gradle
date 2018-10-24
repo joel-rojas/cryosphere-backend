@@ -45,4 +45,4 @@ dependencies {
     testCompile 'junit:junit:4.11'
 }
 
-task stage(dependsOn: ['installDist'])
+task stage(dependsOn: ['build', 'clean'])
