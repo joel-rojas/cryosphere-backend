@@ -44,3 +44,5 @@ dependencies {
     // 'test.useTestNG()' to your build script.
     testCompile 'junit:junit:4.11'
 }
+
+task stage(dependsOn: ['installDist'])
