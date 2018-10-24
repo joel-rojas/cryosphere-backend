@@ -1,0 +1,1 @@
+web: java -war build/lib/cryosphere.war
