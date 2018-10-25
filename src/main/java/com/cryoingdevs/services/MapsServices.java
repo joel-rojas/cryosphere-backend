@@ -4,9 +4,12 @@ import com.cryoingdevs.POJO.*;
 import com.cryoingdevs.common.ColorUtils;
 import com.cryoingdevs.POJO.Point;
 import com.cryoingdevs.common.GlobalConstants;
+import com.cryoingdevs.common.ResourcesUtils;
 
 import javax.imageio.ImageIO;
+import javax.servlet.ServletContext;
 import javax.ws.rs.*;
+import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.awt.*;
@@ -19,6 +22,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.*;
 import java.util.List;
+import java.util.jar.Manifest;
 
 /**
  * Created by IvànAlejandro on 20/10/2018.
@@ -26,12 +30,27 @@ import java.util.List;
 @Path("/maps")
 public class MapsServices {
 
+    private ServletContext servletContext;
+
+    public MapsServices(ServletContext servletContext){
+        this.servletContext = servletContext;
+    }
+
+    public ServletContext getServletContext() {
+        return servletContext;
+    }
+
+    public void setServletContext(ServletContext servletContext) {
+        this.servletContext = servletContext;
+    }
+
     @GET
     @Path("/test")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response get() {
+    public Response get() throws IOException {
         Map<String, Object> message = new HashMap<String, Object>();
         message.put("Cryosphere backend", "The REST services are ready");
+        String fullPath = servletContext.getRealPath("/WEB-INF/test/foo.txt");
         return Response.ok(message).build();
     }
 
@@ -53,11 +72,12 @@ public class MapsServices {
 
         Map<String, Object> message = new HashMap<String, Object>();
         Map<String, RestImagePercentages> mapResults = new HashMap<String, RestImagePercentages>();
+        String imagesResourcesPathFolder = servletContext.getRealPath(ResourcesUtils.getImagesFolderPath());
         try {
             String[] years = {"2015", "2016", "2017", "2018"};
             for (int iter = 0; iter < years.length; iter++) {
                 String year = years[iter];
-                File file = new File("I:/Cryosphere/" + year + ".png");
+                File file = new File(imagesResourcesPathFolder+"/" + year + ".png");
                 BufferedImage image = null;
                 image = ImageIO.read(file);
                 int width = image.getWidth();
@@ -202,7 +222,8 @@ public class MapsServices {
 
         Collection<Double> resultList = new ArrayList<Double>();
 
-        File file = new File("I:/Cryosphere/" + country + ".png");
+        String imagesResourcesPathFolder = servletContext.getRealPath(ResourcesUtils.getImagesFolderPath());
+        File file = new File(imagesResourcesPathFolder+"/" + country + ".png");
         BufferedImage image = null;
         try {
             image = ImageIO.read(file);

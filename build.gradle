@@ -45,4 +45,11 @@ dependencies {
     testCompile 'junit:junit:4.11'
 }
 
+war{
+    from('resources/images'){
+        include '*.png'
+        into('WEB-INF/resources/images')
+    }
+}
+
 task stage(dependsOn: ['build', 'clean'])
