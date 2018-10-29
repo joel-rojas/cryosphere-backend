@@ -6,6 +6,7 @@ package com.cryoingdevs.POJO;
 public class Point {
     private int x;
     private int y;
+    private double distanceToSource;
 
     public Point(int x, int y){
         this.x = x;
@@ -26,5 +27,13 @@ public class Point {
 
     public void setX(int x) {
         this.x = x;
+    }
+
+    public double getDistanceToSource() {
+        return distanceToSource;
+    }
+
+    public void setDistanceToSource(double distanceToSource) {
+        this.distanceToSource = distanceToSource;
     }
 }

@@ -9,9 +9,9 @@ import com.cryoingdevs.common.ResourcesUtils;
 import javax.imageio.ImageIO;
 import javax.servlet.ServletContext;
 import javax.ws.rs.*;
-import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import javax.xml.bind.DatatypeConverter;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
@@ -200,8 +200,8 @@ public class MapsServices {
     @Produces(MediaType.APPLICATION_JSON)
     public Response getNearestCryosphere(RestMapPosition restMapPosition) {
         Map<String, Object> message = new HashMap<String, Object>();
-        Point nearestPoint = null;
-        String country = restMapPosition.getImage().getImageName();//-33.71, -77.87     -22.08,-50.69    -29.61, -68.58
+        String encodedImage = restMapPosition.getImage().getEncodedImage();
+        String nameSavedImage  = saveEncodedPngAsImage(encodedImage);
         double swY = restMapPosition.getBoundingBox()[0][0];
         double swX = restMapPosition.getBoundingBox()[0][1];
         double neY = restMapPosition.getBoundingBox()[1][0];
@@ -223,12 +223,13 @@ public class MapsServices {
         Collection<Double> resultList = new ArrayList<Double>();
 
         String imagesResourcesPathFolder = servletContext.getRealPath(ResourcesUtils.getImagesFolderPath());
-        File file = new File(imagesResourcesPathFolder+"/" + country + ".png");
+        File file = new File(imagesResourcesPathFolder+"/" + nameSavedImage + ".png");
         BufferedImage image = null;
         try {
             image = ImageIO.read(file);
             int width = image.getWidth();
             int height = image.getHeight();
+            System.out.println("Map dimensions: width: "+width+", height: "+height);
             double sourceYValue = (calculatedSourceY*height)/calculatedY;
             double sourceXValue = (calculatedSourceX*width)/calculatedX;
             int sourceY = (int) sourceYValue;
@@ -238,6 +239,8 @@ public class MapsServices {
             boolean[][] mb = new boolean[width][height];
 
             // Populate graph
+            Point nearestPoint = new Point(sourceX, sourceY);
+            nearestPoint.setDistanceToSource(Double.MAX_VALUE);
             for (int i = 0; i < width; i++)
                 for (int j = 0; j < height; j++) {
                     int clr = image.getRGB(i, j);
@@ -248,60 +251,67 @@ public class MapsServices {
                     // Convert color from RGB to HSB
                     float[] hsv = Color.RGBtoHSB(red, green, blue, null);
                     float hue = hsv[0];
+                    if (ColorUtils.isCryogenicArea(red, green,blue)) {
+                        //Calculate minimum distance
+                        double calcDistance = Math.sqrt(Math.pow(i-sourceX,2) + Math.pow(j-sourceY,2));
+                        if(calcDistance < nearestPoint.getDistanceToSource()){
+                            nearestPoint.setDistanceToSource(calcDistance);
+                            nearestPoint.setX(i);
+                            nearestPoint.setY(j);
+                        }
+
+                    }
                     RGBFormat rgbFormat = new RGBFormat(red, green, blue);
                     m[i][j] = rgbFormat;
                     mb[i][j] = false;
                 }
+            System.out.println("Cryo: "+nearestPoint.getX()+", "+nearestPoint.getY()+"; dist: "+nearestPoint.getDistanceToSource());
 
-            // BFS
-            Queue<Point> qv = new LinkedList<Point>();
-            Point sourcePoint = new Point(sourceX, sourceY);
-            qv.add(sourcePoint);
+            if( nearestPoint.getX() != Double.MAX_VALUE && nearestPoint.getY() != Double.MAX_VALUE){
 
-            int x, y;
-            int nearestX = Integer.MIN_VALUE;
-            int nearestY = Integer.MIN_VALUE;
-            while (!qv.isEmpty()) {
-                Point p = qv.poll();
-                if (p != null) {
-                    x = p.getX();
-                    y = p.getY();
-                    mb[x][y] = true; //visited
-                    if (ColorUtils.isCryogenicArea(m[x][y].getRed(), m[x][y].getGreen(), m[x][y].getBlue())) {
-                        nearestX = x;
-                        nearestY = y;
-                        break;
-                    }
-                    //Add neighbours to the queue
-                    if (x > 0 && !mb[x - 10][y]) qv.add(new Point(x - 10, y));
-                    if (x > 0 && y < height - 10 && !mb[x - 10][y + 10]) qv.add(new Point(x - 10, y + 10));
-                    if (y < height - 10 && !mb[x][y + 10]) qv.add(new Point(x, y + 10));
-                    if (x < width - 10 && y < height - 10 && !mb[x + 10][y + 10]) qv.add(new Point(x + 10, y + 10));
-                    if (x < width - 10 && !mb[x + 10][y]) qv.add(new Point(x + 10, y));
-                    if (x < width - 10 && y > 0 && !mb[x + 10][y - 10]) qv.add(new Point(x + 10, y - 10));
-                    if (y > 0 && !mb[x][y - 10]) qv.add(new Point(x, y - 10));
-                    if (x > 0 && y > 0 && !mb[x - 10][y - 10]) qv.add(new Point(x - 10, y - 10));
-                }
+                double nearestX = nearestPoint.getX();
+                double nearestY = nearestPoint.getY();
+
+                //Convert to sent equivalent values
+                double equivX = (nearestX * calculatedX) / width;
+                double equivY = (nearestY * calculatedY) / height;
+
+                equivY += swY;
+                equivX += swX;
+
+                resultList.add(equivY);
+                resultList.add(equivX);
+                System.out.println("Nearest point to the source is ["+equivY+","+equivX+"]");
             }
-            qv.clear();
 
-            double dnearX = (double) nearestX;
-            double dnearY = (double) nearestY;
-
-            double equivX = (dnearX * calculatedX) / width;
-            double equivY = (dnearY * calculatedY) / height;
-
-            equivY += swY;
-            equivX += swX;
-
-            resultList.add(equivY);
-            resultList.add(equivX);
-            System.out.println("Nearest point to the source is ("+equivY+","+equivX+")");
 
         } catch (IOException e) {
             e.printStackTrace();
         }
         message.put("data", resultList);
         return Response.ok(message).build();
+    }
+
+    private String saveEncodedPngAsImage( String base64String){
+
+        // tokenize the data
+        String base64Image = base64String.split(",")[1];
+        byte[] imageBytes = DatatypeConverter.parseBase64Binary(base64Image);
+        String nameSavedImage = "tempImage";
+
+        try {
+
+            BufferedImage img = ImageIO.read(new ByteArrayInputStream(imageBytes));
+            // write the image to a file
+            String imagesResourcesPathFolder = servletContext.getRealPath(ResourcesUtils.getImagesFolderPath());
+            File outputfile = new File(imagesResourcesPathFolder+"/"+nameSavedImage+".png");
+            ImageIO.write(img, "png", outputfile);
+            System.out.println("The image was successfully saved");
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return nameSavedImage;
     }
 }
